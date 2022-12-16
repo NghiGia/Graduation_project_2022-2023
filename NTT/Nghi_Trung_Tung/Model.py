@@ -1,38 +1,9 @@
-# YOLOv5 🚀 by Ultralytics, GPL-3.0 license
-"""
-Run YOLOv5 detection inference on images, videos, directories, globs, YouTube, webcam, streams, etc.
-
-Usage - sources:
-    $ python detect.py --weights yolov5s.pt --source 0                               # webcam
-                                                     img.jpg                         # image
-                                                     vid.mp4                         # video
-                                                     path/                           # directory
-                                                     'path/*.jpg'                    # glob
-                                                     'https://youtu.be/Zgi9g1ksQHc'  # YouTube
-                                                     'rtsp://example.com/media.mp4'  # RTSP, RTMP, HTTP stream
-
-Usage - formats:
-    $ python detect.py --weights yolov5s.pt                 # PyTorch
-                                 yolov5s.torchscript        # TorchScript
-                                 yolov5s.onnx               # ONNX Runtime or OpenCV DNN with --dnn
-                                 yolov5s.xml                # OpenVINO
-                                 yolov5s.engine             # TensorRT
-                                 yolov5s.mlmodel            # CoreML (macOS-only)
-                                 yolov5s_saved_model        # TensorFlow SavedModel
-                                 yolov5s.pb                 # TensorFlow GraphDef
-                                 yolov5s.tflite             # TensorFlow Lite
-                                 yolov5s_edgetpu.tflite     # TensorFlow Edge TPU
-                                 yolov5s_paddle_model       # PaddlePaddle
-"""
-
 import argparse
 import os
 import platform
 import sys
 from pathlib import Path
-from threading import Thread
 import torch
-from View import MainWindow
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -45,7 +16,7 @@ from utils.general import (LOGGER, Profile, check_file, check_img_size, check_im
                            increment_path, non_max_suppression, print_args, scale_boxes, strip_optimizer, xyxy2xywh)
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, smart_inference_mode
-
+import cv2
 global crop
 @smart_inference_mode()
 def run(
@@ -61,7 +32,7 @@ def run(
         save_txt=False,  # save results to *.txt
         save_conf=False,  # save confidences in --save-txt labels
         save_crop=False,  # save cropped prediction boxes
-        nosave=False,  # do not save images/videos
+        nosave=True,  # do not save images/videos
         classes=None,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
         augment=False,  # augmented inference
@@ -77,6 +48,7 @@ def run(
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
 ):
+
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
     is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
@@ -112,6 +84,7 @@ def run(
     model.warmup(imgsz=(1 if pt or model.triton else bs, 3, *imgsz))  # warmup
     seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
     for path, im, im0s, vid_cap, s in dataset:
+
         with dt[0]:
             im = torch.from_numpy(im).to(model.device)
             im = im.half() if model.fp16 else im.float()  # uint8 to fp16/32
@@ -139,28 +112,29 @@ def run(
                 s += f'{i}: '
             else:
                 p, im0, frame = path, im0s.copy(), getattr(dataset, 'frame', 0)
-
             p = Path(p)  # to Path
             save_path = str(save_dir / p.name)  # im.jpg
             txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # im.txt
             s += '%gx%g ' % im.shape[2:]  # print string
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+            img_box12 = im0.copy()
+            img_box12=cv2.resize(img_box12,(18*25,17*25))
+            window.Scrn1.thread_box12.change_pixmap_signal.emit(img_box12)    # ======================================================================
             imc = im0.copy() if save_crop else im0  # for save_crop
             annotator = Annotator(im0, line_width=line_thickness, example=str(names))
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()
-
                 # Print results
                 for c in det[:, 5].unique():
                     n = (det[:, 5] == c).sum()  # detections per class
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
 
                 # Write results
+
                 for *xyxy, conf, cls in reversed(det):
                     crop=save_one_box(xyxy, imc, save=False, BGR=True)
-                    cv2.imshow('crop',crop)
-                    cv2.waitKey(1)
+                    window.Scrn1.thread_box11.change_pixmap_signal.emit(crop)  # ======================================================================
                     if save_txt:  # Write to file
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                         line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
@@ -181,10 +155,12 @@ def run(
                     windows.append(p)
                     cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
                     cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])
-                cv2.imshow(str(p), im0)
+
+                cv2.imshow('Fire', im0)
                 cv2.waitKey(1)  # 1 millisecond
 
             # Save results (image with detections)
+
             if save_img:
                 if dataset.mode == 'image':
                     cv2.imwrite(save_path, im0)
@@ -219,19 +195,19 @@ def run(
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', nargs='+', type=str, default=ROOT / "E:/Study/Luận Văn/NTT/Nghi_Trung_Tung/runs/train/exp4/weights/best.pt", help='model path or triton URL')
-    parser.add_argument('--source', type=str, default=ROOT / 'data/images', help='file/dir/URL/glob/screen/0(webcam)')
-    # parser.add_argument('--source', type=str, default=0, help='file/dir/URL/glob/screen/0(webcam)')
+    # parser.add_argument('--source', type=str, default=ROOT / 'data/images', help='file/dir/URL/glob/screen/0(webcam)')
+    parser.add_argument('--source', type=str, default=0, help='file/dir/URL/glob/screen/0(webcam)')
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='(optional) dataset.yaml path')
     parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
-    parser.add_argument('--conf-thres', type=float, default=0.25, help='confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.60, help='confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='NMS IoU threshold')
     parser.add_argument('--max-det', type=int, default=1000, help='maximum detections per image')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--view-img', action='store_true', help='show results')
+    parser.add_argument('--view-img', default=False,action='store_true', help='show results')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
     parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
     parser.add_argument('--save-crop', action='store_true', help='save cropped prediction boxes')
-    parser.add_argument('--nosave', action='store_true', help='do not save images/videos')
+    parser.add_argument('--nosave',default=True, action='store_true', help='do not save images/videos')
     parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --classes 0, or --classes 0 2 3')
     parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
     parser.add_argument('--augment', action='store_true', help='augmented inference')
@@ -251,58 +227,81 @@ def parse_opt():
     print_args(vars(opt))
     return opt
 
-import time
-def task1():
-   n=0
-   #time.sleep(5)
-   while n < 1000:
-      print(n, "\n")
-      n+=1
-      if n == 1000:
-        n = 1
+
+# ===============================================================================
 
 
-def task2():
-    print("hello wolrddddddddddddddddddddddddddddddddddddddddddddddddddd")
-    while True:
-        time.sleep(3)
-        opt = parse_opt()
-        check_requirements(exclude=('tensorboard', 'thop'))
-        print("hello wolrddddddddddddddddddddddddddddddddddddddddddddddddddd")
-        run(**vars(opt))
+from PyQt5.QtWidgets import (
+    QApplication
+)
+import threading
+from View import MainWindow
+import sys
+from Adafruit_IO import MQTTClient
+AIO_FEED_ID = ["temperature","moisture","relay1","relay2"]
+AIO_USERNAME = "DaveFrostSnow"
+AIO_KEY = "aio_BWXP93SfRb9MK7l1TWNKM8Thj8Fs"
+
+AIO_FEED_ID = ["temperature","moisture","relay1","relay2"]
+AIO_USERNAME = "********"
+AIO_KEY = "**********"
+
+S
+
+def connected ( client ) :
+    print ("Ket noi thanh cong ...")
+    for feed in AIO_FEED_ID:
+        client.subscribe(feed)
+        print(feed)
+
+def subscribe ( client , userdata , mid , granted_qos ) :
+    print ("Subcribe thanh cong ...")
+
+def disconnected ( client ) :
+    print (" Ngat ket noi ...")
+    sys . exit (1)
+
+def message ( client , feed_id , payload ):
+    print ("Nhan du lieu : " + payload +" from feed "+ feed_id)
+    if feed_id=="relay1" and payload=="1":
+        window.Scrn1.box5.setText("On")
+    if feed_id=="relay1" and payload=="0":
+        window.Scrn1.box5.setText("Off")
+    if feed_id=="relay2" and payload=="1":
+        window.Scrn1.box6.setText("On")
+    if feed_id=="relay2" and payload=="0":
+        window.Scrn1.box6.setText("Off")
+    if feed_id == "temperature" :
+        window.Scrn1.hourbox7.append(window.Scrn1.hourbox7[-1] + 1)
+        window.Scrn1.temperature.append(int(float(payload)))  # Add a new random value.
+        window.Scrn1.data_line_box7.setData(window.Scrn1.hourbox7, window.Scrn1.temperature)
+        window.Scrn1.box9.setText("Temp: "+payload)
+    if feed_id == "moisture" :
+        window.Scrn1.hourbox8.append(window.Scrn1.hourbox7[-1] + 1)
+        window.Scrn1.moisture.append(int(float(payload)))  # Add a new random value.
+        window.Scrn1.data_line_box8.setData(window.Scrn1.hourbox8, window.Scrn1.moisture)
+        window.Scrn1.box10.setText("Moisture: " + payload)
+
+
+def connect_adafruit():
+    clients = MQTTClient(AIO_USERNAME , AIO_KEY)
+    return clients
 
 def AI():
     opt = parse_opt()
     check_requirements(exclude=('tensorboard', 'thop'))
     run(**vars(opt))
-if __name__ == "__main__":
-    opt = parse_opt()
-    check_requirements(exclude=('tensorboard', 'thop'))
-    run(**vars(opt))
 
-    # # creating threads
-    # t1 = threading.Thread(target=task1(), name='t1')
-    # t2 = threading.Thread(target=task2(), name='t2')
-    #
-    # # starting threads
-    # t2.start()
-    # t1.start()
-    #
-    #
-    # # wait until all threads finish
-    # t1.join()
-    # t2.join()
+clients=connect_adafruit()
 
-    # thread1 = Thread(target=task1)
-    # thread2 = Thread(target=task2)
-    #
-    # thread1.start()
-    # thread2.start()
-    #
-    # thread1.join()
-    # thread2.join()
 
-opt = parse_opt()
-check_requirements(exclude=('tensorboard', 'thop'))
-run(**vars(opt))
+clients.on_connect = connected
+clients.on_message = message
+clients.connect()
+clients.loop_background()
 
+app = QApplication(sys.argv)
+window = MainWindow(clients)
+window.show()
+AI()
+app.exec()
